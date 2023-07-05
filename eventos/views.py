@@ -1,10 +1,14 @@
-from django.shortcuts import render,redirect
-from django.http import HttpResponse
+from django.shortcuts import render,redirect, get_object_or_404
+from django.http import HttpResponse,Http404
 from django.contrib.auth.decorators import login_required
 from .models import Evento
 from django.urls import reverse
 from django.contrib import messages
 from django.contrib.messages import constants
+import csv
+from secrets import token_urlsafe
+import os
+from django.conf import settings
 
 @login_required
 def novo_evento(request):
@@ -41,8 +45,55 @@ def novo_evento(request):
         messages.add_message(request,constants.SUCCESS, 'Evento cadastrado com sucesso')
         return redirect(reverse('novo_evento'))
     
-
+@login_required
 def gerenciar_evento(request):
     if request.method == "GET":
         eventos = Evento.objects.filter(criador=request.user)
+        nome = request.GET.get('nome')
+        if nome:
+            eventos = eventos.filter(nome__contains=nome)
         return render(request,'gerenciar_evento.html',{'eventos':eventos})
+    
+@login_required(login_url='/usuario/login/')
+def inscrever_evento(request,id):
+    evento = get_object_or_404(Evento, id=id)
+
+    if request.method == "GET":
+        return render(request,'inscrever_evento.html', {'evento' : evento})
+    
+    elif request.method == "POST":
+        user_is_participante = evento.participantes.filter(id=request.user.id).exists()
+        if user_is_participante:
+            messages.warning(request, 'Voce já é participante')
+            return redirect(reverse('inscrever_evento',kwargs={'id': id}))
+        
+        evento.participantes.add(request.user)
+        evento.save()
+        messages.add_message(request, constants.SUCCESS, 'Inscriçao realizada com sucesso')
+        return redirect(reverse('inscrever_evento',kwargs={'id': id}))
+    
+def participante_evento(request,id):
+    evento = get_object_or_404(Evento, id=id)
+    if not evento.criador == request.user:
+        raise Http404('esse evento n é seu')
+    if request.method == "GET":
+        participantes = evento.participantes.all()[0:3]
+        return render(request,'participantes_evento.html', {'participantes':participantes,'evento':evento})
+    
+def gerar_csv(request,id):
+    evento = get_object_or_404(Evento, id=id)
+    if not evento.criador == request.user:
+        raise Http404('esse evento não é seu')
+    
+    participantes = evento.participantes.all()
+
+    token = f'{token_urlsafe(6)}'
+
+    path = os.path.join(settings.MEDIA_ROOT, token)
+
+    with open(path,'w') as arq:
+        writer = csv.writer(arq, delimiter=',')
+        for participante in participantes:
+            x = (participante.username, participante.email)
+            writer.writerow(x)
+    return redirect(f'/media/{token}')

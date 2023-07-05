@@ -6,7 +6,6 @@ from django.contrib.messages import constants
 from django.urls import reverse
 from django.contrib import auth
 
-
 def cadastro(request):
     if request.method == 'GET':
         return render(request,'cadastro.html')
