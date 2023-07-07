@@ -121,4 +121,4 @@ def gerar_certificado (request, id):
         img = Image.open(path_template)
         draw = ImageDraw.Draw(img)
         
-        fonte_nome = ImageFont.truetype()
+        fonte_nome = ImageFont.truetype(path_fonte)
