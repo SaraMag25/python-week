@@ -1,7 +1,7 @@
 from django.shortcuts import render,redirect, get_object_or_404
 from django.http import HttpResponse,Http404
 from django.contrib.auth.decorators import login_required
-from .models import Evento
+from .models import Evento,Certificado
 from django.urls import reverse
 from django.contrib import messages
 from django.contrib.messages import constants
@@ -9,6 +9,7 @@ import csv
 from secrets import token_urlsafe
 import os
 from django.conf import settings
+from PIL import Image,ImageDraw,ImageFont
 
 @login_required
 def novo_evento(request):
@@ -97,3 +98,27 @@ def gerar_csv(request,id):
             x = (participante.username, participante.email)
             writer.writerow(x)
     return redirect(f'/media/{token}')
+
+def certificados_evento(request, id):
+    evento = get_object_or_404(Evento, id=id)
+    if not evento.criador == request.user:
+        raise Http404('esse evento não é seu')
+    
+    if request.method == "GET":
+        qtd_certificados = evento.participantes.all().count() - Certificado.objects.filter(evento=evento).count()
+        return render(request,'certificados_eventos.html', {'qtd_certificados' : qtd_certificados, 'evento': evento})
+    
+def gerar_certificado (request, id):
+    evento = get_object_or_404(Evento, id=id)
+    if not evento.criador == request.user:
+        raise Http404('esse evento não é seu')
+    
+    path_template = os.path.join(settings.BASE_DIR, 'templates/static/evento/img/template_certificado.png')
+    path_fonte = os.path.join(settings.BASE_DIR,'templates/static/fonte/arimo.ttf' )
+
+    for participante in evento.participantes.all():
+        # TODO:  Validar se já existe certificado desse participante para esse evento
+        img = Image.open(path_template)
+        draw = ImageDraw.Draw(img)
+        
+        fonte_nome = ImageFont.truetype()
